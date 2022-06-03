@@ -1,0 +1,50 @@
+version: '3'
+services:
+  home-assistant:
+    image: homeassistant/raspberrypi3-homeassistant
+    container_name: home-assistant
+    privileged: true
+    volumes:
+      - ./home-assistant/config:/config
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - TZ=Europe/Madrid
+    depends_on:
+      - mosquitto
+  mosquitto:
+    image: eclipse-mosquitto
+    container_name: mosquitto
+    restart: unless-stopped
+    networks:
+      - smart-home
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    environment:
+      - TZ=Europe/Madrid
+    user: "1000:1000"
+  zigbee:
+    image: koenkk/zigbee2mqtt
+    container_name: zigbee
+    restart: unless-stopped
+    networks:
+      - smart-home
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./zigbee/data:/app/data
+      - /run/udev:/run/udev:ro
+    devices:
+      - /dev/ttyACM0:/dev/ttyACM0
+    environment:
+      - TZ=Europe/Madrid
+
+networks:
+  smart-home:
+    name: smart-home
+    driver: bridge
