@@ -1,23 +1,26 @@
-version: '3'
 services:
-  home-assistant:
-    image: homeassistant/raspberrypi3-homeassistant
-    container_name: home-assistant
-    privileged: true
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:2026.10
+    container_name: homeassistant
     volumes:
-      - ./home-assistant/config:/config
+      - ./homeassistant/config:/config
+      - /run/dbus:/run/dbus:ro
     restart: unless-stopped
     network_mode: host
     environment:
       - TZ=Europe/Madrid
     depends_on:
       - mosquitto
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
   mosquitto:
     image: eclipse-mosquitto
     container_name: mosquitto
     restart: unless-stopped
     networks:
-      - smart-home
+      - homeassistant
     ports:
       - "1883:1883"
       - "9001:9001"
@@ -27,24 +30,52 @@ services:
       - ./mosquitto/log:/mosquitto/log
     environment:
       - TZ=Europe/Madrid
-    user: "1000:1000"
-  zigbee:
+  zigbee2mqtt:
     image: koenkk/zigbee2mqtt
-    container_name: zigbee
+    container_name: zigbee2mqtt
     restart: unless-stopped
     networks:
-      - smart-home
+      - homeassistant
     ports:
       - "8080:8080"
     volumes:
-      - ./zigbee/data:/app/data
+      - ./zigbee2mqtt/data:/app/data
       - /run/udev:/run/udev:ro
     devices:
       - /dev/ttyACM0:/dev/ttyACM0
     environment:
       - TZ=Europe/Madrid
+    depends_on:
+      - mosquitto
+  duckdns:
+    image: linuxserver/duckdns
+    container_name: duckdns
+    restart: unless-stopped
+    networks:
+      - homeassistant
+    volumes:
+      - ./duckdns/config:/config
+    environment:
+      - TZ=Europe/Madrid
+      - SUBDOMAINS=${DUCKDNS_SUBDOMAINS}
+      - TOKEN=${DUCKDNS_TOKEN}
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    restart: unless-stopped
+    networks:
+      - homeassistant
+    depends_on:
+      - homeassistant
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/data:/data
+      - ./caddy/config:/config
+      - ./caddy/conf:/etc/caddy
 
 networks:
-  smart-home:
-    name: smart-home
+  homeassistant:
+    name: homeassistant
     driver: bridge
